@@ -57,6 +57,49 @@ export function saveLLMSettings(settings: LLMSettings) {
   }
 }
 
+async function callServerProxy(
+  activities: any[],
+  projectInfo: { name: string; targetDuration: number; indirectCostPerDay: number },
+  type: 'insight' | 'chat',
+  chatHistory: any[] = [],
+  userMessage: string = ''
+): Promise<any> {
+  if (type === 'insight') {
+    const response = await fetch('/api/ai/insight', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activities, projectInfo })
+    });
+    if (!response.ok) {
+      throw new Error(`服务器 API 响应失败 (${response.status})`);
+    }
+    const data = await response.json();
+    if (data.insights) {
+      return data.insights;
+    }
+    throw new Error(data.message || "服务器生成 Insight 失败。");
+  } else {
+    const response = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: userMessage,
+        history: chatHistory,
+        activities,
+        projectInfo
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`服务器 API 响应失败 (${response.status})`);
+    }
+    const data = await response.json();
+    return {
+      reply: data.reply || '无分析内容。',
+      sandboxAction: data.sandboxAction || null
+    };
+  }
+}
+
 export async function callClientLLM(
   activities: any[],
   projectInfo: { name: string; targetDuration: number; indirectCostPerDay: number },
@@ -66,8 +109,20 @@ export async function callClientLLM(
 ): Promise<any> {
   const { apiKey, model, customEndpoint } = getLLMSettings();
 
+  // Helper to fallback to server-side API proxy
+  const fallbackToServer = async (originalError?: Error) => {
+    try {
+      console.log("正在尝试通过后端服务器代理进行 AI 推理计算...");
+      return await callServerProxy(activities, projectInfo, type, chatHistory, userMessage);
+    } catch (serverError: any) {
+      console.error("后端服务器代理调用同样失败:", serverError);
+      throw originalError || serverError || new Error("模型调用失败，且无法连接服务器代理。");
+    }
+  };
+
   if (!apiKey) {
-    throw new Error("请先点击专家面板右上角齿轮图标 ⚙ 设置大模型 API-Key！");
+    // If no client-side API key is specified, directly call server proxy
+    return await fallbackToServer();
   }
 
   // Define prompts based on type
@@ -107,7 +162,7 @@ ${JSON.stringify(activities, null, 2)}
 ${JSON.stringify(activities, null, 2)}
 
 请根据用户的问题进行“What-If”多场景推理，给出补救方案。
-特别地，如果你识别到用户的问题暗示了某项或多项工序的突发延误或停摆，请生成一个沙盘突变操作指令(sandboxAction)来更新特定工序的工期或增加其延误，让前端直接高亮渲染受灾后的对比网络图。
+特别地，如果你识别到用户的问题暗示了某项或多项工序 of 突发延误或停摆，请生成一个沙盘突变操作指令(sandboxAction)来更新特定工序的工期或增加其延误，让前端直接高亮渲染受灾后的对比网络图。
 例如：如果用户说“下雨外部施工停摆3天”，而工序A是外部施工，你可以触发对A的延误（时长增加3天）。
 
 返回必须是一个合法的 JSON 对象，不要带任何 markdown 或 \`\`\`json 框。格式必须如下：
@@ -129,84 +184,89 @@ ${JSON.stringify(chatHistory.slice(-6), null, 2)}
 用户最新的问题："${userMessage}"`;
   }
 
-  // Executing Model call
-  if (model === 'gemini') {
-    // Gemini direct call
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const payload = {
-      contents: [
-        {
-          parts: [
-            { text: `${systemPrompt}\n\n${userPrompt}` }
-          ]
+  try {
+    // Executing Model call
+    if (model === 'gemini') {
+      // Gemini direct call
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [
+          {
+            parts: [
+              { text: `${systemPrompt}\n\n${userPrompt}` }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: type === 'insight' ? 0.2 : 0.3
         }
-      ],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature: type === 'insight' ? 0.2 : 0.3
+      };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.error?.message || `Gemini API 调用失败 (${response.status})`);
       }
-    };
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+      const data = await response.json();
+      const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!responseText) {
+        throw new Error("Gemini 模型未返回有效文本内容。");
+      }
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData?.error?.message || `Gemini API 调用失败 (${response.status})`);
+      return cleanAndParseJSON(responseText);
+    } else {
+      // DeepSeek R1 / OpenRouter / Custom OpenAI compatible call
+      const defaultEndpoint = 'https://api.deepseek.com/chat/completions';
+      const endpoint = customEndpoint || defaultEndpoint;
+      
+      // Choose model identifier based on endpoint
+      let modelName = 'deepseek-reasoner';
+      if (endpoint.includes('siliconflow')) {
+        modelName = 'deepseek-ai/DeepSeek-R1';
+      } else if (endpoint.includes('openrouter')) {
+        modelName = 'deepseek/deepseek-r1';
+      }
+
+      const payload = {
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: type === 'insight' ? 0.2 : 0.3
+      };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`DeepSeek API 调用失败 (${response.status}): ${errorText.substring(0, 100)}`);
+      }
+
+      const data = await response.json();
+      const responseText = data.choices?.[0]?.message?.content;
+      if (!responseText) {
+        throw new Error("DeepSeek 模型未返回有效内容。");
+      }
+
+      return cleanAndParseJSON(responseText);
     }
-
-    const data = await response.json();
-    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!responseText) {
-      throw new Error("Gemini 模型未返回有效文本内容。");
-    }
-
-    return cleanAndParseJSON(responseText);
-  } else {
-    // DeepSeek R1 / OpenRouter / Custom OpenAI compatible call
-    const defaultEndpoint = 'https://api.deepseek.com/chat/completions';
-    const endpoint = customEndpoint || defaultEndpoint;
-    
-    // Choose model identifier based on endpoint
-    let modelName = 'deepseek-reasoner';
-    if (endpoint.includes('siliconflow')) {
-      modelName = 'deepseek-ai/DeepSeek-R1';
-    } else if (endpoint.includes('openrouter')) {
-      modelName = 'deepseek/deepseek-r1';
-    }
-
-    const payload = {
-      model: modelName,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: type === 'insight' ? 0.2 : 0.3
-    };
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`DeepSeek API 调用失败 (${response.status}): ${errorText.substring(0, 100)}`);
-    }
-
-    const data = await response.json();
-    const responseText = data.choices?.[0]?.message?.content;
-    if (!responseText) {
-      throw new Error("DeepSeek 模型未返回有效内容。");
-    }
-
-    return cleanAndParseJSON(responseText);
+  } catch (directError: any) {
+    console.warn("直接浏览器端 API 调用失败，正在重试后端协同服务器:", directError);
+    return await fallbackToServer(directError);
   }
 }

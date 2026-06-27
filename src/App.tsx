@@ -831,11 +831,6 @@ print(df_res.to_string())
     };
 
     try {
-      if (!apiKey) {
-        setAiInsights(getFallbackInsights(activities));
-        return;
-      }
-
       const clientData = await callClientLLM(
         activities,
         {
@@ -1154,7 +1149,7 @@ print(df_res.to_string())
               title="学习关键路径法(CPM)和计划评审技术(PERT)的底层理论并查看、生成项目报告"
             >
               <BookOpen className="h-3.5 w-3.5 text-indigo-500" />
-              <span>知识导引 & 报告生成</span>
+              <span>知识导引</span>
             </button>
           </div>
         </div>

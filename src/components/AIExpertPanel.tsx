@@ -186,7 +186,7 @@ export const AIExpertPanel: React.FC<AIExpertPanelProps> = ({
           </div>
           <div>
             <h3 className="text-base md:text-lg font-extrabold text-slate-900 tracking-tight">AI 计划协同决策专家</h3>
-            <p className="text-xs md:text-sm text-slate-500 font-medium">大语言模型（Gemini & DeepSeek）浏览器直接调用</p>
+            <p className="text-xs md:text-sm text-slate-500 font-medium">智能云代理与多端私有模型协同设计</p>
           </div>
         </div>
         
@@ -205,9 +205,9 @@ export const AIExpertPanel: React.FC<AIExpertPanelProps> = ({
           
           <button
             onClick={onRefreshInsights}
-            disabled={loadingInsights || !hasApiKeySet}
+            disabled={loadingInsights}
             className="p-2 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 rounded-lg transition-colors text-slate-500 cursor-pointer disabled:opacity-40"
-            title={hasApiKeySet ? "重新扫描并分析网络计划" : "请先配置 API-Key"}
+            title="重新扫描并分析网络计划"
           >
             <RefreshCw className={`h-4 w-4 ${loadingInsights ? 'animate-spin text-indigo-500' : ''}`} />
           </button>
@@ -273,7 +273,6 @@ export const AIExpertPanel: React.FC<AIExpertPanelProps> = ({
                       ? "输入您的 Google Gemini API-Key..." 
                       : "输入您的 DeepSeek API-Key..."
                   }
-                  required
                   className="w-full px-3 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-lg text-xs md:text-sm outline-none text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:bg-white"
                 />
                 <button
@@ -328,24 +327,15 @@ export const AIExpertPanel: React.FC<AIExpertPanelProps> = ({
         
         {/* API-Key missing alert */}
         {!hasApiKeySet && (
-          <div className="bg-indigo-50 border border-indigo-100 p-3.5 rounded-xl flex flex-col gap-2.5 shadow-xs">
+          <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex flex-col gap-2.5 shadow-xs">
             <div className="flex gap-2.5 items-start">
               <Cpu className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
               <div>
-                <span className="text-xs md:text-sm font-extrabold text-indigo-800">未检测到模型密钥配置</span>
-                <p className="text-xs md:text-sm text-slate-700 leading-relaxed mt-1">
-                  所有大模型推理功能均在浏览器本地调用。请点击右侧齿轮 ⚙，手工输入大模型 API-Key 确认后即可激活全部 AI 工序风险预警与沙盘功能。
+                <span className="text-xs md:text-sm font-extrabold text-slate-800">系统已启用智能云协同服务器</span>
+                <p className="text-xs md:text-sm text-slate-600 leading-relaxed mt-1">
+                  大模型推理功能已接入云端服务器。若您希望使用自定义的 Gemini 或 DeepSeek 大模型密钥，可以点击右上角齿轮 ⚙ 进行独立配置。
                 </p>
               </div>
-            </div>
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowSettings(true)}
-                className="text-xs md:text-sm font-extrabold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
-              >
-                <span>立即配置密钥</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
             </div>
           </div>
         )}
@@ -540,7 +530,7 @@ export const AIExpertPanel: React.FC<AIExpertPanelProps> = ({
             />
             <button
               type="submit"
-              disabled={!chatInput.trim() || isSendingMessage || !hasApiKeySet}
+              disabled={!chatInput.trim() || isSendingMessage}
               className="p-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl transition-all cursor-pointer shadow-xs flex items-center justify-center"
             >
               <Send className="h-4 w-4" />
