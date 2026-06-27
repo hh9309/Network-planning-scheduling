@@ -1,0 +1,8 @@
+{
+  "name": "智能网络计划协同系统",
+  "description": "融合传统CPM/PERT算法与大语言模型，集双模数据录入、多图联动、动态赶工模拟、风险预警、资源调度推荐及对话式沙盘模拟于一体的智能网络计划协同系统。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

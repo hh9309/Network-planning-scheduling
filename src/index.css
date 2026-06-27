@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-pulse-crimson: pulse-crimson 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-pulse-amber: pulse-amber 3s ease-in-out infinite;
+  --animate-dash: dash 25s linear infinite;
+
+  @keyframes pulse-crimson {
+    0%, 100% {
+      border-color: #dc2626;
+      box-shadow: 0 0 8px rgba(220, 38, 38, 0.35);
+    }
+    50% {
+      border-color: #ef4444;
+      box-shadow: 0 0 22px rgba(239, 68, 68, 0.75);
+    }
+  }
+
+  @keyframes pulse-amber {
+    0%, 100% {
+      box-shadow: 0 0 4px rgba(245, 158, 11, 0.2);
+    }
+    50% {
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.5);
+    }
+  }
+
+  @keyframes dash {
+    to {
+      stroke-dashoffset: -1000;
+    }
+  }
+}
+
+/* Custom professional styles */
+.dot-grid {
+  position: relative;
+  background-color: #fcfdfe;
+}
+
+.dot-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: radial-gradient(#4f46e5 1.2px, transparent 0);
+  background-size: 20px 20px;
+}
+
+/* Custom flow indicator animations */
+.animate-dash {
+  stroke-dasharray: 8, 4;
+  animation: dash 35s linear infinite;
+}
+
+@keyframes dash {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
